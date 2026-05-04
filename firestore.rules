@@ -1,0 +1,189 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields: uid, email, name, role
+    //
+    // Collection: slots
+    // Fields: id, status, vehicleId, zone, type
+    //
+    // Collection: sessions
+    // Fields: id, vehicleNumber, userId, entryTime, exitTime, slotId, fee, status
+    //
+    // Collection: violations
+    // Fields: id, vehicleNumber, type, timestamp, penaltyScore
+    //
+    // Collection: blacklist
+    // Fields: vehicleNumber, reason, timestamp
+    //
+    // Collection: activityLogs
+    // Fields: id, userId, action, timestamp, details
+    //
+    // Collection: reviews
+    // Fields: id, userId, rating, text, timestamp, sentimentScore
+    // Collection: transactions
+    // Fields: id, sessionId, userId, amount, timestamp, method, status
+    //
+    // Collection: settings
+    // Fields: baseRate
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isManagement() {
+      return isAuthenticated() && (
+        request.auth.token.email == "asssoft143@gmail.com" || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'staff']
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == "asssoft143@gmail.com" || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'role']) &&
+             data.uid is string &&
+             data.role in ['admin', 'manager', 'staff', 'customer'] &&
+             (!('email' in data) || data.email is string);
+    }
+
+    function isValidSlot(data) {
+      return data.keys().hasAll(['id', 'status', 'zone']) &&
+             data.id is string &&
+             data.status in ['available', 'occupied'] &&
+             data.zone is string;
+    }
+
+    function isValidSession(data) {
+      return data.keys().hasAll(['id', 'vehicleNumber', 'entryTime', 'slotId', 'status']) &&
+             data.id is string &&
+             data.vehicleNumber is string &&
+             data.entryTime is string &&
+             data.slotId is string &&
+             data.status in ['active', 'completed'];
+    }
+
+    function isValidViolation(data) {
+      return data.keys().hasAll(['id', 'vehicleNumber', 'type', 'timestamp', 'penaltyScore', 'status']) &&
+             data.id is string &&
+             data.vehicleNumber is string &&
+             data.type is string &&
+             data.timestamp is string &&
+             data.penaltyScore is number &&
+             data.status in ['pending', 'resolved'];
+    }
+
+    function isValidBlacklist(data) {
+      return data.keys().hasAll(['vehicleNumber', 'reason', 'timestamp']) &&
+             data.vehicleNumber is string &&
+             data.reason is string &&
+             data.timestamp is string;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['id', 'userId', 'action', 'timestamp']) &&
+             data.id is string &&
+             data.userId is string &&
+             data.action is string &&
+             data.timestamp is string;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['id', 'userId', 'rating', 'timestamp', 'text']) &&
+             data.id is string &&
+             data.userId is string &&
+             data.rating in ['good', 'average', 'bad'] &&
+             data.text is string && data.text.size() <= 280 &&
+             data.timestamp is string;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['id', 'sessionId', 'userId', 'amount', 'timestamp', 'method', 'status']) &&
+             data.id is string &&
+             data.sessionId is string &&
+             data.userId is string &&
+             data.amount is number &&
+             data.timestamp is string &&
+             data.method in ['cash', 'bkash'] &&
+             data.status is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isManagement();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isManagement());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin()) && 
+                    (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /slots/{slotId} {
+      allow read: if isAuthenticated();
+      allow write: if isManagement() && isValidSlot(request.resource.data);
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isAuthenticated() && (request.auth.uid == (resource == null ? "none" : resource.data.userId) || isManagement());
+      allow create: if isAuthenticated() && isValidSession(request.resource.data) && (request.auth.uid == request.resource.data.userId || isManagement());
+      allow update: if isAuthenticated() && isValidSession(request.resource.data) && (request.auth.uid == resource.data.userId || isManagement());
+    }
+
+    match /violations/{violationId} {
+      allow read: if isAuthenticated() && (request.auth.uid == (resource == null ? "none" : resource.data.userId) || isManagement());
+      allow create: if isManagement() && isValidViolation(request.resource.data);
+      allow update: if isManagement() && isValidViolation(request.resource.data) && 
+                    (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+    }
+
+    match /blacklist/{vehicleNumber} {
+      allow read: if isAuthenticated();
+      allow write: if isManagement() && isValidBlacklist(request.resource.data);
+    }
+
+    match /activityLogs/{logId} {
+      allow read: if isManagement();
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if isManagement();
+      allow create: if isAuthenticated() && isValidReview(request.resource.data) && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isManagement());
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (request.auth.uid == (resource == null ? "none" : resource.data.userId) || isManagement());
+      allow create: if isAuthenticated() && isValidTransaction(request.resource.data) && (request.auth.uid == request.resource.data.userId || isManagement());
+    }
+  }
+}

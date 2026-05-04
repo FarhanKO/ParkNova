@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "customer"] }
+      },
+      "required": ["uid", "role"]
+    },
+    "ParkingSlot": {
+      "title": "Parking Slot",
+      "description": "Information about a parking space",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "occupied"] },
+        "vehicleId": { "type": "string" },
+        "zone": { "type": "string" },
+        "type": { "type": "string", "enum": ["standard", "vip"] }
+      },
+      "required": ["id", "status", "zone"]
+    },
+    "ParkingSession": {
+      "title": "Parking Session",
+      "description": "A record of a vehicle's parking stay",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "vehicleNumber": { "type": "string" },
+        "userId": { "type": "string" },
+        "entryTime": { "type": "string", "format": "date-time" },
+        "exitTime": { "type": "string", "format": "date-time" },
+        "slotId": { "type": "string" },
+        "fee": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "completed"] }
+      },
+      "required": ["id", "vehicleNumber", "entryTime", "slotId", "status"]
+    },
+    "Violation": {
+      "title": "Violation",
+      "description": "A record of a parking rule violation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "vehicleNumber": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "penaltyScore": { "type": "number" }
+      },
+      "required": ["id", "vehicleNumber", "type", "timestamp"]
+    },
+    "Blacklist": {
+      "title": "Blacklist",
+      "description": "A record of a blacklisted vehicle",
+      "type": "object",
+      "properties": {
+        "vehicleNumber": { "type": "string" },
+        "reason": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vehicleNumber", "reason", "timestamp"]
+    },
+    "ActivityLog": {
+      "title": "Activity Log",
+      "description": "A record of a system action",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "userId", "action", "timestamp"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A user review of the parking service",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "rating": { "type": "number" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "sentimentScore": { "type": "number" }
+      },
+      "required": ["id", "userId", "rating", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/slots/{slotId}": { "schema": "ParkingSlot", "description": "Parking slots" },
+    "/sessions/{sessionId}": { "schema": "ParkingSession", "description": "Parking sessions" },
+    "/violations/{violationId}": { "schema": "Violation", "description": "Parking violations" },
+    "/blacklist/{vehicleNumber}": { "schema": "Blacklist", "description": "Blacklisted vehicles" },
+    "/activityLogs/{logId}": { "schema": "ActivityLog", "description": "System activity logs" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "User reviews" }
+  }
+}
